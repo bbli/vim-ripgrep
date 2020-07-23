@@ -20,6 +20,10 @@ if !exists('g:rg_root_types')
   let g:rg_root_types = ['.git']
 endif
 
+if !exists('g:rg_derive_root')
+  let g:rg_derive_root = 0
+endif
+
 if !exists('g:rg_window_location')
   let g:rg_window_location = 'botright'
 endif
@@ -28,8 +32,19 @@ fun! g:RgVisual() range
   call s:RgGrepContext(function('s:RgSearch'), '"' . s:RgGetVisualSelection() . '"')
 endfun
 
-fun! s:Rg(txt)
-  call s:RgGrepContext(function('s:RgSearch'), s:RgSearchTerm(a:txt))
+fun! g:MyRipGrep(txt,git)
+    if a:git == 1
+        "exe 'lcd' . shellescape(systemlist('git rev-parse --show-toplevel')[0])
+        let l:temp = g:rg_derive_root
+        let g:rg_derive_root = 1
+        " Doesn't print out for some reason
+        "echo "Before Call " . g:rg_derive_root
+        call s:RgGrepContext(function('s:RgSearch'), s:RgSearchTerm(a:txt))
+        let g:rg_derive_root = l:temp
+    else
+        call s:RgGrepContext(function('s:RgSearch'), s:RgSearchTerm(a:txt))
+    endif
+
 endfun
 
 fun! s:RgGetVisualSelection()
@@ -89,7 +104,7 @@ fun! s:RgGrepContext(search, txt)
     let &shellpipe="&>"
   endif
 
-  if exists('g:rg_derive_root')
+  if g:rg_derive_root == 1
     call s:RgPathContext(a:search, a:txt)
   else
     call a:search(a:txt)
@@ -102,6 +117,7 @@ fun! s:RgGrepContext(search, txt)
   let &grepformat = l:grepformatb
 endfun
 
+"I see, cd avoids tha shellescape problem.
 fun! s:RgPathContext(search, txt)
   let l:cwdb = getcwd()
   exe 'lcd '.s:RgRootDir()
@@ -138,12 +154,17 @@ fun! s:RgHasFile(path)
 endfun
 
 fun! s:RgShowRoot()
-  if exists('g:rg_derive_root')
+  if g:rg_derive_root == 1
     echo s:RgRootDir()
   else
     echo getcwd()
   endif
 endfun
 
-command! -nargs=* -complete=file Rg :call s:Rg(<q-args>)
+"Cannot use shell escape as arguments will be passed
+"into the command line as one string
+"command! -nargs=* -complete=file Rgs call MyRipGrep(<q-args>,0)
 command! -complete=file RgRoot :call s:RgShowRoot()
+command! -bang -nargs=* GitRipGrep call MyRipGrep(<q-args>,1)
+"To include hidden files too
+command! -bang -nargs=* RipGrep call MyRipGrep(<q-args>,0)
